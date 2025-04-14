@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Clientes</title>
+  <style>
+    table {
+      width: 80%;
+      border-collapse: collapse;
+      margin: 20px auto;
+    }
+    th, td {
+      padding: 10px;
+      border: 1px solid #ccc;
+      text-align: center;
+    }
+    th {
+      background-color: #f0f0f0;
+    }
+    button {
+      margin-top: 5px;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h2 style="text-align: center;">Lista de Clientes</h2>
+  <div style="text-align: center;">
+    <button onclick="abrirModalAgregar()">Agregar Cliente</button>
+  </div>
+  <br>
+  <div style="text-align: center; margin-bottom: 20px;">
+    <input type="text" id="searchId" placeholder="Buscar por ID" />
+    <button onclick="buscarCliente()">Buscar</button>
+    <button onclick="limpiarBusqueda()">Limpiar</button>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Nombre</th>
+        <th>Correo</th>
+        <th>Dirección</th>
+        <th>Teléfono</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody id="clientes-body">
+    </tbody>
+  </table>
+  <div id="modalFormulario" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background-color: rgba(0, 0, 0, 0.5); z-index: 1000; justify-content: center; align-items: center;">
+    <div style="background-color: white; padding: 20px; border-radius: 8px; width: 300px; position: relative;">
+      <h3 id="tituloModal">Agregar Cliente</h3>
+      <form id="clienteForm">
+        <input type="text" id="id" placeholder="ID" required><br>
+        <input type="text" id="nombre" placeholder="Nombre" required><br>
+        <input type="email" id="correo" placeholder="Correo" required><br>
+        <input type="text" id="direccion" placeholder="Dirección" required><br>
+        <input type="text" id="telefono" placeholder="Teléfono" required><br>
+        <button type="submit" id="btnSubmit">Agregar</button>
+        <button type="button" onclick="cerrarModal()">Cancelar</button>
+      </form>
+    </div>
+  </div>
+  <script>
+    let modoEdicion = false;
+    let idEdicion = null;
+    function abrirModalAgregar() {
+      modoEdicion = false;
+      idEdicion = null;
+      document.getElementById("tituloModal").innerText = "Agregar Cliente";
+      document.getElementById("btnSubmit").innerText = "Agregar";
+      document.getElementById("id").disabled = false;
+      document.getElementById("clienteForm").reset();
+      document.getElementById("modalFormulario").style.display = "flex";
+    }
+    function cerrarModal() {
+      document.getElementById("modalFormulario").style.display = "none";
+    }
+    function cargarClientes() {
+    fetch('https://api-soporte.onrender.com/clientes')
+      .then(response => response.json())
+      .then(data => {
+        const clientes = data.clientes;
+        const tbody = document.getElementById('clientes-body');
+        tbody.innerHTML = "";
+        clientes.forEach(cliente => {
+          const fila = document.createElement('tr');
+          fila.innerHTML = `
+            <td>${cliente.id}</td>
+            <td>${cliente.nombre}</td>
+            <td>${cliente.correo}</td>
+            <td>${cliente.direccion}</td>
+            <td>${cliente.telefono}</td>
+            <td>
+              <button onclick="editarCliente('${cliente.id}')">Editar</button>
+              <button onclick="eliminarCliente('${cliente.id}')">Eliminar</button>
+            </td>
+          `;
+          tbody.appendChild(fila);
+        });
+      });
+    } 
+    cargarClientes();
+    const form = document.getElementById("clienteForm");
+    const submitBtn = document.getElementById("submitBtn");
+    document.getElementById("clienteForm").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    const cliente = {
+      id: document.getElementById("id").value,
+      nombre: document.getElementById("nombre").value,
+      correo: document.getElementById("correo").value,
+      direccion: document.getElementById("direccion").value,
+      telefono: document.getElementById("telefono").value,
+    };
+    try {
+      const url = modoEdicion
+        ? `https://api-soporte.onrender.com/cliente/${idEdicion}`
+        : `https://api-soporte.onrender.com/cliente/${cliente.id}`;
+      const method = modoEdicion ? "PUT" : "POST";
+      const response = await fetch(url, {
+        method: method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(cliente),
+      });
+      if (!response.ok) throw new Error("Error al procesar la solicitud");
+      alert(modoEdicion ? "Cliente actualizado correctamente" : "Cliente agregado correctamente");
+      cerrarModal();
+      cargarClientes(); 
+      } catch (error) {
+        console.error("Error:", error);
+        alert("Hubo un error");
+      }
+    });
+    function editarCliente(id) {
+    fetch(`https://api-soporte.onrender.com/cliente/${id}`)
+      .then(response => response.json())
+      .then(cliente => {
+        if (cliente && cliente.datos) {
+          modoEdicion = true;
+          idEdicion = id;
+          document.getElementById("tituloModal").innerText = "Editar Cliente";
+          document.getElementById("btnSubmit").innerText = "Guardar Cambios";
+          document.getElementById("modalFormulario").style.display = "flex";
+
+          document.getElementById("id").value = id;
+          document.getElementById("id").disabled = true;
+          document.getElementById("nombre").value = cliente.datos.nombre;
+          document.getElementById("correo").value = cliente.datos.correo;
+          document.getElementById("direccion").value = cliente.datos.direccion;
+          document.getElementById("telefono").value = cliente.datos.telefono;
+        }
+      })
+      .catch(error => {
+        console.error("Error al obtener datos del cliente:", error);
+        alert("Error al obtener los datos del cliente");
+      });
+    }
+    function eliminarCliente(id) {
+      const confirmacion = confirm("¿Estás seguro de que deseas eliminar este cliente?");
+      if (confirmacion) {
+        fetch(`https://api-soporte.onrender.com/cliente/${id}`, {
+          method: "DELETE",
+        })
+        .then(response => {
+          if (response.ok) {
+            alert("Cliente eliminado correctamente");
+            cargarClientes();
+          } else {
+            throw new Error("Error al eliminar el cliente");
+          }
+        })
+        .catch(error => {
+          console.error("Error:", error);
+          alert("Error al eliminar cliente");
+        });
+      }
+    }
+    function buscarCliente() {
+      const idBuscado = document.getElementById("searchId").value;
+      if (!idBuscado) {
+        alert("Por favor ingresa un ID.");
+        return;
+      }
+      fetch(`https://api-soporte.onrender.com/cliente/${idBuscado}`)
+      .then(response => response.json())
+      .then(cliente => {
+        const tbody = document.getElementById('clientes-body');
+        tbody.innerHTML = "";
+        if (cliente && cliente.datos) {
+          const fila = document.createElement('tr');
+          fila.innerHTML = `
+            <td>${cliente.cliente_id}</td>
+            <td>${cliente.datos.nombre || 'No disponible'}</td>
+            <td>${cliente.datos.correo || 'No disponible'}</td>
+            <td>${cliente.datos.direccion || 'No disponible'}</td>
+            <td>${cliente.datos.telefono || 'No disponible'}</td>
+            <td>
+              <button onclick="editarCliente('${cliente.cliente_id}')">Editar</button>
+              <button onclick="eliminarCliente('${cliente.cliente_id}')">Eliminar</button>
+            </td>
+          `;
+          tbody.appendChild(fila);
+        } else {
+          tbody.innerHTML = "<tr><td colspan='6'>No se encontró el cliente.</td></tr>";
+        }
+      })
+      .catch(error => {
+        console.error('Error al buscar el cliente:', error);
+        alert("Error al buscar el cliente");
+      });
+    }
+    function limpiarBusqueda() {
+      document.getElementById("searchId").value = "";
+      cargarClientes();
+    }
+  </script>
+</body>
+</html>
