@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Empleados</title>
+  <style>
+    table {
+      width: 90%;
+      border-collapse: collapse;
+      margin: 20px auto;
+    }
+    th, td {
+      padding: 10px;
+      border: 1px solid #ccc;
+      text-align: center;
+    }
+    th {
+      background-color: #f0f0f0;
+    }
+    button {
+      margin-top: 5px;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="index.html">Clientes</a>
+    <a href="empleados.html">Empleados</a>
+    <a href="solicitudes.html">Solicitudes de Soporte</a>
+  </nav>
+
+  <h2 style="text-align: center;">Lista de Empleados</h2>
+  <div style="text-align: center;">
+    <button onclick="abrirModalAgregar()">Agregar Empleado</button>
+  </div>
+  <br>
+  <div style="text-align: center; margin-bottom: 20px;">
+    <input type="text" id="searchId" placeholder="Buscar por ID" />
+    <button onclick="buscarEmpleado()">Buscar</button>
+    <button onclick="limpiarBusqueda()">Limpiar</button>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Nombre</th>
+        <th>Puesto</th>
+        <th>Correo</th>
+        <th>Teléfono</th>
+        <th>Fecha Ingreso</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody id="empleados-body">
+    </tbody>
+  </table>
+
+  <div id="modalFormulario" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background-color: rgba(0, 0, 0, 0.5); z-index: 1000; justify-content: center; align-items: center;">
+    <div style="background-color: white; padding: 20px; border-radius: 8px; width: 300px; position: relative;">
+      <h3 id="tituloModal">Agregar Empleado</h3>
+      <form id="empleadoForm">
+        <input type="text" id="id" placeholder="ID" required><br>
+        <input type="text" id="nombre" placeholder="Nombre" required><br>
+        <input type="text" id="puesto" placeholder="Puesto" required><br>
+        <input type="email" id="correo" placeholder="Correo" required><br>
+        <input type="text" id="telefono" placeholder="Teléfono" required><br>
+        <input type="date" id="fecha_ingreso" placeholder="Fecha Ingreso" required><br>
+        <button type="submit" id="btnSubmit">Agregar</button>
+        <button type="button" onclick="cerrarModal()">Cancelar</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let modoEdicion = false;
+    let idEdicion = null;
+
+    function abrirModalAgregar() {
+      modoEdicion = false;
+      idEdicion = null;
+      document.getElementById("tituloModal").innerText = "Agregar Empleado";
+      document.getElementById("btnSubmit").innerText = "Agregar";
+      document.getElementById("id").disabled = false;
+      document.getElementById("empleadoForm").reset();
+      document.getElementById("modalFormulario").style.display = "flex";
+    }
+
+    function cerrarModal() {
+      document.getElementById("modalFormulario").style.display = "none";
+    }
+
+    function cargarEmpleados() {
+      fetch('https://api-soporte.onrender.com/empleados')
+        .then(response => response.json())
+        .then(data => {
+          const empleados = data.empleados;
+          const tbody = document.getElementById('empleados-body');
+          tbody.innerHTML = "";
+          empleados.forEach(empleado => {
+            const fila = document.createElement('tr');
+            fila.innerHTML = `
+              <td>${empleado.id}</td>
+              <td>${empleado.nombre}</td>
+              <td>${empleado.puesto}</td>
+              <td>${empleado.correo}</td>
+              <td>${empleado.telefono}</td>
+              <td>${empleado.fecha_ingreso}</td>
+              <td>
+                <button onclick="editarEmpleado('${empleado.id}')">Editar</button>
+                <button onclick="eliminarEmpleado('${empleado.id}')">Eliminar</button>
+              </td>
+            `;
+            tbody.appendChild(fila);
+          });
+        });
+    }
+
+    cargarEmpleados();
+
+    document.getElementById("empleadoForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const empleado = {
+        id: document.getElementById("id").value,
+        nombre: document.getElementById("nombre").value,
+        puesto: document.getElementById("puesto").value,
+        correo: document.getElementById("correo").value,
+        telefono: document.getElementById("telefono").value,
+        fecha_ingreso: document.getElementById("fecha_ingreso").value,
+      };
+      try {
+        const url = modoEdicion
+          ? `https://api-soporte.onrender.com/empleado/${idEdicion}`
+          : `https://api-soporte.onrender.com/empleado/${empleado.id}`;
+        const method = modoEdicion ? "PUT" : "POST";
+        const response = await fetch(url, {
+          method: method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(empleado),
+        });
+        if (!response.ok) throw new Error("Error al procesar la solicitud");
+        alert(modoEdicion ? "Empleado actualizado correctamente" : "Empleado agregado correctamente");
+        cerrarModal();
+        cargarEmpleados();
+      } catch (error) {
+        console.error("Error:", error);
+        alert("Hubo un error");
+      }
+    });
+
+    function editarEmpleado(id) {
+      fetch(`https://api-soporte.onrender.com/empleado/${id}`)
+        .then(response => response.json())
+        .then(empleado => {
+          if (empleado && empleado.datos) {
+            modoEdicion = true;
+            idEdicion = id;
+            document.getElementById("tituloModal").innerText = "Editar Empleado";
+            document.getElementById("btnSubmit").innerText = "Guardar Cambios";
+            document.getElementById("modalFormulario").style.display = "flex";
+
+            document.getElementById("id").value = id;
+            document.getElementById("id").disabled = true;
+            document.getElementById("nombre").value = empleado.datos.nombre;
+            document.getElementById("puesto").value = empleado.datos.puesto;
+            document.getElementById("correo").value = empleado.datos.correo;
+            document.getElementById("telefono").value = empleado.datos.telefono;
+            document.getElementById("fecha_ingreso").value = empleado.datos.fecha_ingreso;
+          }
+        })
+        .catch(error => {
+          console.error("Error al obtener datos del empleado:", error);
+          alert("Error al obtener los datos del empleado");
+        });
+    }
+
+    function eliminarEmpleado(id) {
+      const confirmacion = confirm("¿Estás seguro de que deseas eliminar este empleado?");
+      if (confirmacion) {
+        fetch(`https://api-soporte.onrender.com/empleado/${id}`, {
+          method: "DELETE",
+        })
+        .then(response => {
+          if (response.ok) {
+            alert("Empleado eliminado correctamente");
+            cargarEmpleados();
+          } else {
+            throw new Error("Error al eliminar el empleado");
+          }
+        })
+        .catch(error => {
+          console.error("Error:", error);
+          alert("Error al eliminar empleado");
+        });
+      }
+    }
+
+    function buscarEmpleado() {
+      const idBuscado = document.getElementById("searchId").value;
+      if (!idBuscado) {
+        alert("Por favor ingresa un ID.");
+        return;
+      }
+      fetch(`https://api-soporte.onrender.com/empleado/${idBuscado}`)
+        .then(response => response.json())
+        .then(empleado => {
+          const tbody = document.getElementById('empleados-body');
+          tbody.innerHTML = "";
+          if (empleado && empleado.datos) {
+            const fila = document.createElement('tr');
+            fila.innerHTML = `
+              <td>${empleado.empleado_id}</td>
+              <td>${empleado.datos.nombre}</td>
+              <td>${empleado.datos.puesto}</td>
+              <td>${empleado.datos.correo}</td>
+              <td>${empleado.datos.telefono}</td>
+              <td>${empleado.datos.fecha_ingreso}</td>
+              <td>
+                <button onclick="editarEmpleado('${empleado.empleado_id}')">Editar</button>
+                <button onclick="eliminarEmpleado('${empleado.empleado_id}')">Eliminar</button>
+              </td>
+            `;
+            tbody.appendChild(fila);
+          } else {
+            tbody.innerHTML = "<tr><td colspan='7'>No se encontró el empleado.</td></tr>";
+          }
+        })
+        .catch(error => {
+          console.error('Error al buscar el empleado:', error);
+          alert("Error al buscar el empleado");
+        });
+    }
+
+    function limpiarBusqueda() {
+      document.getElementById("searchId").value = "";
+      cargarEmpleados();
+    }
+  </script>
+</body>
+</html>

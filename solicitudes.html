@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Solicitudes de Soporte</title>
+  <style>
+    table {
+      width: 90%;
+      border-collapse: collapse;
+      margin: 20px auto;
+    }
+    th, td {
+      padding: 10px;
+      border: 1px solid #ccc;
+      text-align: center;
+    }
+    th {
+      background-color: #f0f0f0;
+    }
+    button {
+      margin-top: 5px;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    select {
+      width: 100%;
+      padding: 8px;
+      margin: 5px 0;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="index.html">Clientes</a>
+    <a href="empleados.html">Empleados</a>
+    <a href="solicitudes.html">Solicitudes de Soporte</a>
+  </nav>
+
+  <h2 style="text-align: center;">Solicitudes de Soporte</h2>
+  <div style="text-align: center;">
+    <button onclick="abrirModalAgregar()">Agregar Solicitud</button>
+  </div>
+  <br>
+  <div style="text-align: center; margin-bottom: 20px;">
+    <input type="text" id="searchId" placeholder="Buscar por ID" />
+    <button onclick="buscarSolicitud()">Buscar</button>
+    <button onclick="limpiarBusqueda()">Limpiar</button>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Cliente ID</th>
+        <th>Descripción</th>
+        <th>Estado</th>
+        <th>Fecha Solicitud</th>
+        <th>Fecha Solución</th>
+        <th>Empleado ID</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody id="solicitudes-body">
+    </tbody>
+  </table>
+
+  <div id="modalFormulario" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background-color: rgba(0, 0, 0, 0.5); z-index: 1000; justify-content: center; align-items: center;">
+    <div style="background-color: white; padding: 20px; border-radius: 8px; width: 400px; position: relative;">
+      <h3 id="tituloModal">Agregar Solicitud</h3>
+      <form id="solicitudForm">
+        <input type="text" id="id" placeholder="ID" required><br>
+        <input type="text" id="cliente_id" placeholder="Cliente ID" required><br>
+        <textarea id="descripcion" placeholder="Descripción" required style="width: 100%; height: 80px; margin: 5px 0;"></textarea><br>
+        <select id="estado" required>
+          <option value="pendiente">Pendiente</option>
+          <option value="en_proceso">En Proceso</option>
+          <option value="completado">Completado</option>
+        </select><br>
+        <input type="date" id="fecha_solicitud" placeholder="Fecha Solicitud"><br>
+        <input type="date" id="fecha_solucion" placeholder="Fecha Solución"><br>
+        <input type="text" id="empleado_id" placeholder="Empleado ID (opcional)"><br>
+        <textarea id="observacion" placeholder="Observación (opcional)" style="width: 100%; height: 60px; margin: 5px 0;"></textarea><br>
+        <button type="submit" id="btnSubmit">Agregar</button>
+        <button type="button" onclick="cerrarModal()">Cancelar</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let modoEdicion = false;
+    let idEdicion = null;
+
+    function abrirModalAgregar() {
+      modoEdicion = false;
+      idEdicion = null;
+      document.getElementById("tituloModal").innerText = "Agregar Solicitud";
+      document.getElementById("btnSubmit").innerText = "Agregar";
+      document.getElementById("id").disabled = false;
+      document.getElementById("solicitudForm").reset();
+      document.getElementById("estado").value = "pendiente";
+      document.getElementById("modalFormulario").style.display = "flex";
+    }
+
+    function cerrarModal() {
+      document.getElementById("modalFormulario").style.display = "none";
+    }
+
+    function cargarSolicitudes() {
+      fetch('https://api-soporte.onrender.com/soportes')
+        .then(response => response.json())
+        .then(data => {
+          const solicitudes = data.soportes;
+          const tbody = document.getElementById('solicitudes-body');
+          tbody.innerHTML = "";
+          solicitudes.forEach(solicitud => {
+            const fila = document.createElement('tr');
+            fila.innerHTML = `
+              <td>${solicitud.id}</td>
+              <td>${solicitud.cliente_id || ''}</td>
+              <td>${solicitud.descripcion || ''}</td>
+              <td>${solicitud.estado || ''}</td>
+              <td>${solicitud.fecha_solicitud || ''}</td>
+              <td>${solicitud.fecha_solucion || ''}</td>
+              <td>${solicitud.empleado_id || ''}</td>
+              <td>
+                <button onclick="editarSolicitud('${solicitud.id}')">Editar</button>
+                <button onclick="eliminarSolicitud('${solicitud.id}')">Eliminar</button>
+              </td>
+            `;
+            tbody.appendChild(fila);
+          });
+        });
+    }
+
+    cargarSolicitudes();
+
+    document.getElementById("solicitudForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const solicitud = {
+        cliente_id: document.getElementById("cliente_id").value,
+        descripcion: document.getElementById("descripcion").value,
+        estado: document.getElementById("estado").value,
+        fecha_solicitud: document.getElementById("fecha_solicitud").value || null,
+        fecha_solucion: document.getElementById("fecha_solucion").value || null,
+        observacion: document.getElementById("observacion").value || null,
+        empleado_id: document.getElementById("empleado_id").value || null
+      };
+      try {
+        const url = modoEdicion
+          ? `https://api-soporte.onrender.com/soporte/${idEdicion}`
+          : `https://api-soporte.onrender.com/soporte/${document.getElementById("id").value}`;
+        const method = modoEdicion ? "PUT" : "POST";
+        const response = await fetch(url, {
+          method: method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(solicitud),
+        });
+        if (!response.ok) throw new Error("Error al procesar la solicitud");
+        alert(modoEdicion ? "Solicitud actualizada correctamente" : "Solicitud agregada correctamente");
+        cerrarModal();
+        cargarSolicitudes();
+      } catch (error) {
+        console.error("Error:", error);
+        alert("Hubo un error: " + error.message);
+      }
+    });
+
+    function editarSolicitud(id) {
+      fetch(`https://api-soporte.onrender.com/soporte/${id}`)
+        .then(response => response.json())
+        .then(solicitud => {
+          if (solicitud && solicitud.datos) {
+            modoEdicion = true;
+            idEdicion = id;
+            document.getElementById("tituloModal").innerText = "Editar Solicitud";
+            document.getElementById("btnSubmit").innerText = "Guardar Cambios";
+            document.getElementById("modalFormulario").style.display = "flex";
+
+            document.getElementById("id").value = id;
+            document.getElementById("id").disabled = true;
+            document.getElementById("cliente_id").value = solicitud.datos.cliente_id || '';
+            document.getElementById("descripcion").value = solicitud.datos.descripcion || '';
+            document.getElementById("estado").value = solicitud.datos.estado || 'pendiente';
+            document.getElementById("fecha_solicitud").value = solicitud.datos.fecha_solicitud || '';
+            document.getElementById("fecha_solucion").value = solicitud.datos.fecha_solucion || '';
+            document.getElementById("empleado_id").value = solicitud.datos.empleado_id || '';
+            document.getElementById("observacion").value = solicitud.datos.observacion || '';
+          }
+        })
+        .catch(error => {
+          console.error("Error al obtener datos de la solicitud:", error);
+          alert("Error al obtener los datos de la solicitud");
+        });
+    }
+
+    function eliminarSolicitud(id) {
+      const confirmacion = confirm("¿Estás seguro de que deseas eliminar esta solicitud?");
+      if (confirmacion) {
+        fetch(`https://api-soporte.onrender.com/soporte/${id}`, {
+          method: "DELETE",
+        })
+        .then(response => {
+          if (response.ok) {
+            alert("Solicitud eliminada correctamente");
+            cargarSolicitudes();
+          } else {
+            throw new Error("Error al eliminar la solicitud");
+          }
+        })
+        .catch(error => {
+          console.error("Error:", error);
+          alert("Error al eliminar solicitud");
+        });
+      }
+    }
+
+    function buscarSolicitud() {
+      const idBuscado = document.getElementById("searchId").value;
+      if (!idBuscado) {
+        alert("Por favor ingresa un ID.");
+        return;
+      }
+      fetch(`https://api-soporte.onrender.com/soporte/${idBuscado}`)
+        .then(response => response.json())
+        .then(solicitud => {
+          const tbody = document.getElementById('solicitudes-body');
+          tbody.innerHTML = "";
+          if (solicitud && solicitud.datos) {
+            const fila = document.createElement('tr');
+            fila.innerHTML = `
+              <td>${solicitud.soporte_id}</td>
+              <td>${solicitud.datos.cliente_id || ''}</td>
+              <td>${solicitud.datos.descripcion || ''}</td>
+              <td>${solicitud.datos.estado || ''}</td>
+              <td>${solicitud.datos.fecha_solicitud || ''}</td>
+              <td>${solicitud.datos.fecha_solucion || ''}</td>
+              <td>${solicitud.datos.empleado_id || ''}</td>
+              <td>
+                <button onclick="editarSolicitud('${solicitud.soporte_id}')">Editar</button>
+                <button onclick="eliminarSolicitud('${solicitud.soporte_id}')">Eliminar</button>
+              </td>
+            `;
+            tbody.appendChild(fila);
+          } else {
+            tbody.innerHTML = "<tr><td colspan='8'>No se encontró la solicitud.</td></tr>";
+          }
+        })
+        .catch(error => {
+          console.error('Error al buscar la solicitud:', error);
+          alert("Error al buscar la solicitud");
+        });
+    }
+
+    function limpiarBusqueda() {
+      document.getElementById("searchId").value = "";
+      cargarSolicitudes();
+    }
+  </script>
+</body>
+</html>
